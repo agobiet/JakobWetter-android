@@ -256,17 +256,37 @@
     if (i >= 0) points[i] = Object.assign({}, points[i], doc); else points.push(doc);
     sortPoints();
   }
+  // Längerfristige Prognose (10 Tage) für den Verlauf: ECMWF IFS über Open-Meteo (CC BY 4.0, ohne Schlüssel nur nicht-kommerziell)
+  const OM = "https://api.open-meteo.com/v1/ecmwf";
+  async function loadEcmwf(p) {
+    const q = `latitude=${p.lat}&longitude=${p.lon}&hourly=temperature_2m,precipitation,snowfall&forecast_days=10&timeformat=unixtime`
+      + (isNum(p.elev?.site) ? `&elevation=${Math.round(p.elev.site)}` : "");
+    for (const extra of ["&models=ecmwf_ifs", ""]) {
+      const txt = await attempt(() => get(`${OM}?${q}${extra}`));
+      if (!txt) continue;
+      try {
+        const j = JSON.parse(txt), H = j.hourly || {};
+        const pick = (k) => { const key = Object.keys(H).find((n) => n === k || n.startsWith(k + "_")); return key ? H[key] : []; };
+        const tt = (H.time || []).map((v) => v * 1000), t2 = pick("temperature_2m");
+        if (tt.length < 24 || !t2.some(isNum)) continue;
+        return { model: "ECMWF IFS (Open-Meteo)", time: tt.map((v) => new Date(v).toISOString().slice(0, 19) + "Z"),
+          t2m: t2, tp: pick("precipitation"), sf: pick("snowfall"), elev: j.elevation, got: new Date().toISOString().slice(0, 19) + "Z" };
+      } catch (e) {}
+    }
+    return null;
+  }
   async function loadPlace(p, cur, lwd, ava) {
     const f1 = new Date(); f1.setUTCMinutes(0, 0, 0);
     const ll = `${p.lat},${p.lon}`, h = (x) => new Date(f1.getTime() + x * 3600e3);
     const d0 = new Date(f1); d0.setUTCHours(0);
-    const [fc, nc, inc, ens, sg, sl] = await Promise.all([
+    const [fc, nc, inc, ens, sg, sl, ec] = await Promise.all([
       attempt(() => get(`${API}/timeseries/forecast/nwp-v2-1h-1km?parameters=2t,tp,sf,10fg,tcc,sund,10u,10v&lat_lon=${ll}&start=${isoH(f1)}&output_format=csv`)),
       attempt(() => get(`${API}/timeseries/forecast/nowcast-v1-15min-1km?parameters=t2m,rr&lat_lon=${ll}&output_format=csv`)),
       attempt(() => get(`${API}/timeseries/historical/inca-v1-1h-1km?parameters=T2M,RR&lat_lon=${ll}&start=${isoH(h(-6))}&end=${isoH(h(1))}&output_format=csv`)),
       attempt(() => get(`${API}/timeseries/forecast/ensemble-v2-1h-1km?parameters=tp_p10,tp_p50,tp_p90&lat_lon=${ll}&start=${isoH(f1)}&output_format=csv`)),
       attempt(() => get(`${API}/timeseries/historical/snowgrid_cl-v2-1d-1km?parameters=snow_depth&lat_lon=${ll}&start=${isoD(new Date(d0.getTime() - 5 * 864e5))}&end=${isoD(d0)}&output_format=csv`)),
       attempt(() => get(`${API}/timeseries/forecast/nwp-v2-1h-1km?parameters=snowlmt&lat_lon=${ll}&start=${isoH(f1)}&output_format=csv`)),
+      loadEcmwf(p),
     ]);
     const old = points.find((x) => x.id === p.id);
     const moved = old && p.id === LOC_ID && (Math.abs(old.lat - p.lat) > 1e-4 || Math.abs(old.lon - p.lon) > 1e-4);
@@ -282,6 +302,7 @@
     put("ensemble", ens && buildEnsemble(parseCsv(ens)), true);
     put("snow", sg && buildSnow(parseCsv(sg)), false);
     put("snowlimit", sl && buildSnowlimit(parseCsv(sl)), false);
+    put("ecmwf", ec, false);
     if (NO_LWD.has(p.id)) { delete doc.lwd; delete doc.lwdExtra; }
     else if (lwd) {
       const l = lwdNearest(p, lwd);
