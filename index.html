@@ -809,10 +809,14 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
     const pt = (t, v) => `${x(t).toFixed(1)},${y(v).toFixed(1)}`;
     if (NC && NC.pts.length > 1) {
       // Prognose bis Stundenbeginn, dann Nowcast über die laufende Stunde, dann wieder Prognose
-      const before = fT.map((t, i) => [t, F.t2m[i]]).filter(([t, v]) => t <= NC.a && isNum(v));
+      // Gibt es eine Analyse (INCA), schließt der Nowcast direkt an deren letzten Wert an – ohne C-LAEF dazwischen
+      // (Wunsch von Andreas, 15.10.2026). Nur ohne Analyse zeigt die Linie C-LAEF bis zum Beginn der Nowcast-Stunde.
+      const rLast = rT.map((t, i) => [t, R.TL[i]]).filter(([t, v]) => isNum(v) && t <= NC.a).pop();
+      const before = rLast ? [] : fT.map((t, i) => [t, F.t2m[i]]).filter(([t, v]) => t <= NC.a && isNum(v));
       const after = fT.map((t, i) => [t, F.t2m[i]]).filter(([t, v]) => t > NC.t && isNum(v));
       const ncPts = NC.pts.slice();
-      if (before.length && before[before.length - 1][0] === NC.a && ncPts[0][0] > NC.a) ncPts.unshift(before[before.length - 1]);
+      if (rLast && ncPts[0][0] > rLast[0]) ncPts.unshift(rLast);
+      else if (before.length && before[before.length - 1][0] === NC.a && ncPts[0][0] > NC.a) ncPts.unshift(before[before.length - 1]);
       const last = ncPts[ncPts.length - 1];
       if (before.length > 1) s.push(`<polyline class="tr" points="${before.map(([t, v]) => pt(t, v)).join(" ")}"/>`);
       if (after.length) s.push(`<polyline class="tr" points="${[last, ...after].map(([t, v]) => pt(t, v)).join(" ")}"/>`);
