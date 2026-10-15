@@ -618,12 +618,12 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
     if (!idx.length) { $("#soonSec").hidden = true; return; }
     $("#soonSec").hidden = false;
 
-    // Niederschlag je Stunde: Nowcast (15 min) wo vorhanden, sonst Prognose
+    // Niederschlag je Stunde: in der ersten Stunde Nowcast (15 min), sonst Prognose C-LAEF
     const N = P.nowcast;
     const nT = N?.time?.length ? N.time.map(Date.parse) : [];
     const nEnd = nT.length ? nT[nT.length - 1] : 0;
     const rain = idx.map((i) => {
-      if (nEnd >= fT[i]) {
+      if (nEnd >= fT[i] && i < idx[0] + NC_HOURS) {
         const a = Math.max(fT[i] - 3600e3, now);
         let r = 0;
         nT.forEach((t, k) => { if (t > a && t <= fT[i] && isNum(N.rr[k])) r += N.rr[k]; });
@@ -696,13 +696,13 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
     $("#soonLead").textContent = lead + ".";
   }
 
-  // ---------- Nowcast für die ersten drei Stunden ----------
-  // Ersetzt in einer Kopie der Prognose die ersten (bis zu) drei Stunden, die noch nicht vorbei sind
+  // ---------- Nowcast für die erste Stunde (seit 15.10.2026; vorher drei Stunden) ----------
+  // Ersetzt in einer Kopie der Prognose die erste Stunde, die noch nicht vorbei ist
   // (Zeitstempel = Stundenende), durch den Nowcast – soweit er das Stundenende abdeckt:
   // Temperatur zum Stundenende, Niederschlag = Summe der 15-min-Werte der Stunde,
   // Schnee-Anteil wie in der Prognose (bei Prognose ohne Niederschlag: Schnee, wenn der Nowcast ≤ 0,5 °C zeigt).
   // Gilt für alle Abschnitte außer "Jetzt gemessen" (dort nur echte Messwerte).
-  const NC_HOURS = 3;
+  const NC_HOURS = 1;
   function withNowcast(P) {
     const F = P?.forecast, N = P?.nowcast;
     if (!F?.time?.length || !N?.time?.length) return P;
@@ -927,7 +927,7 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
     const run = Date.parse(F.run);
     const g = F.grid || {};
     const dist = isNum(g.lat) ? (() => { const r = Math.PI / 180, a = Math.sin(((g.lat - P.lat) * r) / 2) ** 2 + Math.cos(P.lat * r) * Math.cos(g.lat * r) * Math.sin(((g.lon - P.lon) * r) / 2) ** 2; return 2 * 6371 * Math.asin(Math.sqrt(a)); })() : null;
-    $("#footModel").innerHTML = `<strong>Prognose:</strong> Modell ${esc(F.model || "C-LAEF AlpeAdria")}, 1-km-Raster, Modelllauf ${isNum(run) ? esc(dayInline(lp(run))) + " " + hm(run) + " Uhr" : "unbekannt"}. Gerechnet für den Gitterpunkt ${isNum(g.lat) ? N4.format(g.lat) + "° N / " + N4.format(g.lon) + "° O" : "–"}${isNum(dist) ? ", " + N1.format(dist) + " km vom Ort" : ""}${elevTxt(P, "claef")}. Messwerte stammen von Stationen, Prognosewerte vom Modell. <strong>Stunde für Stunde:</strong> „mm“ ist die Niederschlagsmenge der Stunde laut Prognose; das Regensymbol zeigt die Stärke (1 Strich unter 1 mm, 2 bis 2,5 mm, 3 bis 10 mm, 4 Striche mit dunkler Wolke ab 10 mm). Der Tropfen zeigt die Wahrscheinlichkeit für mindestens 0,1 mm in der Stunde, geschätzt aus den 10-, 50- und 90-%-Werten des Ensembles (C-LAEF, Datensatz ensemble-v2-1h-1km); Werte zwischen 10 und 90 % sind interpoliert, darunter bzw. darüber steht nur „&lt; 10 %“ bzw. „&gt; 90 %“. Die nächsten bis zu drei Stunden (türkis umrandet, im Verlauf das türkise Linienstück) kommen aus dem Nowcast (15-Minuten-Werte, Datensatz nowcast-v1-15min-1km) – auch in Schlagzeile und Tageswerten: Temperatur zum Stundenende, Niederschlag als Summe der Stunde. Der Nowcast reicht nur rund drei Stunden ab seiner Berechnung; was er nicht mehr abdeckt, kommt aus dem Modell. Die Wahrscheinlichkeit dieser Stunden stammt weiter aus dem Ensemble. „Jetzt gemessen“ zeigt immer echte Stationswerte.` + (() => {
+    $("#footModel").innerHTML = `<strong>Prognose:</strong> Modell ${esc(F.model || "C-LAEF AlpeAdria")}, 1-km-Raster, Modelllauf ${isNum(run) ? esc(dayInline(lp(run))) + " " + hm(run) + " Uhr" : "unbekannt"}. Gerechnet für den Gitterpunkt ${isNum(g.lat) ? N4.format(g.lat) + "° N / " + N4.format(g.lon) + "° O" : "–"}${isNum(dist) ? ", " + N1.format(dist) + " km vom Ort" : ""}${elevTxt(P, "claef")}. Messwerte stammen von Stationen, Prognosewerte vom Modell. <strong>Stunde für Stunde:</strong> „mm“ ist die Niederschlagsmenge der Stunde laut Prognose; das Regensymbol zeigt die Stärke (1 Strich unter 1 mm, 2 bis 2,5 mm, 3 bis 10 mm, 4 Striche mit dunkler Wolke ab 10 mm). Der Tropfen zeigt die Wahrscheinlichkeit für mindestens 0,1 mm in der Stunde, geschätzt aus den 10-, 50- und 90-%-Werten des Ensembles (C-LAEF, Datensatz ensemble-v2-1h-1km); Werte zwischen 10 und 90 % sind interpoliert, darunter bzw. darüber steht nur „&lt; 10 %“ bzw. „&gt; 90 %“. Die nächste Stunde (türkis umrandet, im Verlauf das türkise Linienstück) kommt aus dem Nowcast (15-Minuten-Werte, Datensatz nowcast-v1-15min-1km) – auch in Schlagzeile und Tageswerten: Temperatur zum Stundenende, Niederschlag als Summe der Stunde. Ab der zweiten Stunde kommen alle Werte aus dem Modell C-LAEF. Die Wahrscheinlichkeit dieser Stunde stammt weiter aus dem Ensemble. „Jetzt gemessen“ zeigt immer echte Stationswerte.` + (() => {
       const R = P.recent, rg = R?.grid;
       if (R?.source !== "inca" || !isNum(rg?.lat)) return "";
       const r = Math.PI / 180, a = Math.sin(((rg.lat - P.lat) * r) / 2) ** 2 + Math.cos(P.lat * r) * Math.cos(rg.lat * r) * Math.sin(((rg.lon - P.lon) * r) / 2) ** 2;
@@ -991,7 +991,7 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
     $("#snowSec").hidden = !rows.length;
     $("#snowList").innerHTML = rows.map(([dt, dd, cls, sub]) => `<div><dt>${esc(dt)}</dt><dd class="${cls}">${esc(dd)}</dd>${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</div>`).join("");
     $("#footSnow").innerHTML = rows.length ? "<strong>Schnee:</strong> Die Schneehöhe am Ort stammt aus dem Schneemodell SNOWGRID (1-km-Raster, ein Wert pro Tag, meist vom Vortag). „Gemessen“ zeigt die nächste Station mit Schneesensor bis 30 km Entfernung, sobald sie einen Wert meldet. Neuschnee ist der Schneefall der Prognose als Wasserwert; 1 mm entspricht grob 1 cm, je nach Schneedichte auch deutlich mehr. Die Schneefallgrenze kommt aus dem Modell C-LAEF; GeoSphere beschreibt sie als Höhe über Grund, die Werte passen aber eher zu Metern Seehöhe – sie ist daher nur als grober Anhaltspunkt gedacht." : "";
-    if (P.forecast?.sf) $("#footSnow").innerHTML += " <strong>Powder-Alarm:</strong> Summe des prognostizierten Neuschnees der nächsten 24 Stunden am Modell-Gitterpunkt (C-LAEF, die ersten bis zu drei Stunden aus dem Nowcast; 1 mm Wasserwert ≈ 1 cm). Stufe 1 (gelb) ab 10 cm, Stufe 2 (orange) ab 20 cm, Stufe 3 (rot) ab 40 cm. Der farbige Punkt in den Ortsknöpfen zeigt die Stufe für jeden Ort. Kein Hinweis auf Lawinengefahr – dafür den Lawinenlagebericht lesen.";
+    if (P.forecast?.sf) $("#footSnow").innerHTML += " <strong>Powder-Alarm:</strong> Summe des prognostizierten Neuschnees der nächsten 24 Stunden am Modell-Gitterpunkt (C-LAEF, die erste Stunde aus dem Nowcast; 1 mm Wasserwert ≈ 1 cm). Stufe 1 (gelb) ab 10 cm, Stufe 2 (orange) ab 20 cm, Stufe 3 (rot) ab 40 cm. Der farbige Punkt in den Ortsknöpfen zeigt die Stufe für jeden Ort. Kein Hinweis auf Lawinengefahr – dafür den Lawinenlagebericht lesen.";
   }
 
   // ---------- Lawinenlage (Feld avalanche: Lagebericht der Warnregion, EAWS/CAAML) ----------
