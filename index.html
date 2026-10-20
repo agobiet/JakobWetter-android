@@ -464,20 +464,28 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
   const elevTxt = (P, k) => { const e = elevOf(P, k); return e ? `, Gelände am Gitterpunkt ${hM(e.point)}` + (isNum(e.cell) && Math.abs(e.cell - e.point) >= 5 ? ` (Mittel der 1-km-Zelle ca. ${hM(Math.round(e.cell / 10) * 10)})` : "") : ""; };
 
   // ---------- Kopf ----------
-  // ---------- Powder-Alarm: Neuschnee der nächsten 24 h (Prognose, erste Stunden Nowcast) ----------
+  // ---------- Powder-Alarm: Neuschnee der nächsten 3 Tage (72 h) ----------
+  // Erste Stunde Nowcast, dann C-LAEF bis zu dessen Ende, danach ECMWF (Feld ecmwf; Schneefall in cm, /0,7 = Wasserwert, 1 mm ≈ 1 cm)
+  // 72 statt 24 h seit 20.10.2026 (Wunsch von Andreas)
   const POWDER = [[40, 3], [20, 2], [10, 1]];   // ab cm -> Stufe
+  const POWDER_H = 72;                            // Zeitraum in Stunden
   function powderOf(P) {
     const F = P?.forecast;
     if (!F?.sf || !F.time?.length) return null;
-    const now = Date.now(), lim = now + 24 * 3600e3;
-    let cm = 0, last = null;
+    const now = Date.now(), lim = now + POWDER_H * 3600e3;
+    let cm = 0, last = null, ec = false;
     F.time.forEach((t, i) => {
       const end = Date.parse(t);
       if (end > now && end <= lim) { cm += isNum(F.sf[i]) ? F.sf[i] : 0; last = end; }
     });
     if (last === null) return null;
+    const E = P.ecmwf, fEnd = Date.parse(F.time[F.time.length - 1]);
+    if (E?.time?.length && last < lim) E.time.forEach((t, i) => {
+      const end = Date.parse(t);
+      if (end > fEnd && end > now && end <= lim && isNum(E.sf?.[i])) { cm += E.sf[i] / 0.7; last = Math.max(last, end); ec = true; }
+    });
     const lvl = (POWDER.find(([c]) => cm >= c) || [0, 0])[1];
-    return { cm, lvl, until: last };
+    return { cm, lvl, until: last, ec };
   }
   function renderPowder(P) {
     const el = $("#powder"), pw = powderOf(P);
@@ -486,11 +494,11 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
     const name = ["", "Powder in Sicht", "Powder-Alarm", "Mega-Powder"][pw.lvl];
     el.className = `powder l${pw.lvl}`;
     el.innerHTML = `<span class="lvl">${pw.lvl}</span><span class="ttl">${name}</span>`
-      + `<span class="txt">ca. ${f0(pw.cm)} cm Neuschnee in den nächsten 24 Stunden (bis ${esc(dayInline(lp(pw.until)))} ${hm(pw.until)} Uhr) · Stufe 1 ab 10, 2 ab 20, 3 ab 40 cm</span>`;
+      + `<span class="txt">ca. ${f0(pw.cm)} cm Neuschnee in den nächsten 3 Tagen (bis ${esc(dayInline(lp(pw.until)))} ${hm(pw.until)} Uhr) · Stufe 1 ab 10, 2 ab 20, 3 ab 40 cm</span>`;
   }
   function powderDot(p) {
     const pw = powderOf(withNowcast(p));
-    return pw && pw.lvl ? `<span class="pw l${pw.lvl}" role="img" aria-label="Powder-Alarm Stufe ${pw.lvl}" title="Powder-Alarm Stufe ${pw.lvl}: ca. ${f0(pw.cm)} cm in 24 h"></span>` : "";
+    return pw && pw.lvl ? `<span class="pw l${pw.lvl}" role="img" aria-label="Powder-Alarm Stufe ${pw.lvl}" title="Powder-Alarm Stufe ${pw.lvl}: ca. ${f0(pw.cm)} cm in 3 Tagen"></span>` : "";
   }
 
   function renderHead(P) {
@@ -1029,7 +1037,7 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
     $("#snowSec").hidden = !rows.length;
     $("#snowList").innerHTML = rows.map(([dt, dd, cls, sub]) => `<div><dt>${esc(dt)}</dt><dd class="${cls}">${esc(dd)}</dd>${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</div>`).join("");
     $("#footSnow").innerHTML = rows.length ? "<strong>Schnee:</strong> Die Schneehöhe am Ort stammt aus dem Schneemodell SNOWGRID (1-km-Raster, ein Wert pro Tag, meist vom Vortag). „Gemessen“ zeigt die nächste Station mit Schneesensor bis 30 km Entfernung, sobald sie einen Wert meldet. Neuschnee ist der Schneefall der Prognose als Wasserwert; 1 mm entspricht grob 1 cm, je nach Schneedichte auch deutlich mehr. Die Schneefallgrenze kommt aus dem Modell C-LAEF; GeoSphere beschreibt sie als Höhe über Grund, die Werte passen aber eher zu Metern Seehöhe – sie ist daher nur als grober Anhaltspunkt gedacht." : "";
-    if (P.forecast?.sf) $("#footSnow").innerHTML += " <strong>Powder-Alarm:</strong> Summe des prognostizierten Neuschnees der nächsten 24 Stunden am Modell-Gitterpunkt (C-LAEF, die erste Stunde aus dem Nowcast; 1 mm Wasserwert ≈ 1 cm). Stufe 1 (gelb) ab 10 cm, Stufe 2 (orange) ab 20 cm, Stufe 3 (rot) ab 40 cm. Der farbige Punkt in den Ortsknöpfen zeigt die Stufe für jeden Ort. Kein Hinweis auf Lawinengefahr – dafür den Lawinenlagebericht lesen.";
+    if (P.forecast?.sf) $("#footSnow").innerHTML += " <strong>Powder-Alarm:</strong> Summe des prognostizierten Neuschnees der nächsten 3 Tage (72 Stunden) am Modell-Gitterpunkt: die erste Stunde aus dem Nowcast, dann C-LAEF bis zu dessen Ende (rund 2½ Tage), den Rest aus ECMWF (1 mm Wasserwert ≈ 1 cm). Fehlt ECMWF, zählt nur der Zeitraum bis zum Ende von C-LAEF – das „bis“ im Band zeigt, wie weit gerechnet ist. Stufe 1 (gelb) ab 10 cm, Stufe 2 (orange) ab 20 cm, Stufe 3 (rot) ab 40 cm. Der farbige Punkt in den Ortsknöpfen zeigt die Stufe für jeden Ort. Kein Hinweis auf Lawinengefahr – dafür den Lawinenlagebericht lesen.";
   }
 
   // ---------- Lawinenlage (Feld avalanche: Lagebericht der Warnregion, EAWS/CAAML) ----------
