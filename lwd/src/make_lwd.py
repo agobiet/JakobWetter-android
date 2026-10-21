@@ -106,6 +106,8 @@ html = rep(html, '"punktwetter.sel"', '"lwdwetter.sel"', html.count('"punktwette
 html = rep(html, '"jakob.live.standort"', '"lwd.live.standort"', html.count('"jakob.live.standort"'))
 assert "punktwetter.sel" not in html and "jakob.live" not in html, "noch Jakob-Speicher"
 html = rep(html, '<meta name="color-scheme" content="light dark">\n', '''<meta name="color-scheme" content="light dark">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-title" content="LWD Wetter">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
