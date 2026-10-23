@@ -36,7 +36,7 @@ i = L.index("  const STATIONS_FIXED = [")
 j = L.index("  ];\n", i) + len("  ];\n")
 L = L[:i] + "  const STATIONS_FIXED = [];\n" + L[j:]
 L = rep(L, 'const NO_LWD = new Set(["st-peter", "griesplatz"]);', "const NO_LWD = new Set([]);")
-L = rep(L, 'const LWD_EXTRA = { tauplitzalm: [{ label: "Großsee", re: /gro(ß|ss|s)\\s*see/i }] };', "const LWD_EXTRA = {};")
+L = rep(L, 'const LWD_EXTRA = { tauplitzalm: [{ label: "Großsee", re: /gro(ß|ss|s)\\s*see/i }] };', "const LWD_EXTRA = { stadelstein: [{ label: \"Eisenerzer Ramsau\", re: /ramsau/i }] };   // Wunsch von Andreas, 23.10.2026; nächste Station mit „Ramsau“ im Namen")
 L = rep(L, 'const STORE = "jakob.live.v1", STORE_LWD = "jakob.live.lwd.v1", STORE_LOC = "jakob.live.standort";',
         'const STORE = "lwd.live.v1", STORE_LWD = "lwd.live.lwd.v2", STORE_LOC = "lwd.live.standort";')
 # feste Warnregionen nur noch für die Orte, die es auch bei Jakob-Wetter gibt

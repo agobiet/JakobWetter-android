@@ -1208,7 +1208,7 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
   // zusätzlich angezeigte LWD-Stationen je Ort (Wunsch von Andreas, 14.10.2026)
   // Flachlandorte ohne LWD-Station (Wunsch von Andreas, 15.10.2026)
   const NO_LWD = new Set([]);
-  const LWD_EXTRA = {};
+  const LWD_EXTRA = { stadelstein: [{ label: "Eisenerzer Ramsau", re: /ramsau/i }] };   // Wunsch von Andreas, 23.10.2026; nächste Station mit „Ramsau“ im Namen
   const STORE = "lwd.live.v1", STORE_LWD = "lwd.live.lwd.v2", STORE_LOC = "lwd.live.standort";
   const REFRESH_MIN = 10;
 
