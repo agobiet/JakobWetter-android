@@ -170,7 +170,11 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
 .legend i.pr { height: 9px; border: 0; background: var(--rain); width: 8px; }
 .legend i.su { height: 9px; border: 0; background: var(--sun); width: 8px; }
 .legend i.nt { height: 9px; border: 1px solid var(--rule); background: var(--night); width: 12px; }
-.chartbox { background: var(--sheet); border: 1px solid var(--rule); border-radius: 14px; padding: 8px 4px 2px; overflow-x: auto; }
+.chartbox { background: var(--sheet); border: 1px solid var(--rule); border-radius: 14px; padding: 8px 4px 2px; overflow: hidden; position: relative; }
+.chartbox .cscroll { overflow-x: auto; }
+.chartbox .axbar { position: absolute; top: 8px; background: var(--sheet); pointer-events: none; }
+.chartbox .axl { left: 4px; }
+.chartbox .axr { right: 4px; }
 .chartbox svg { display: block; }
 .chartbox .g { stroke: var(--grid); stroke-width: 1; fill: none; }
 .chartbox .d { stroke: var(--rule); stroke-width: 1; fill: none; }
@@ -902,7 +906,7 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
     const pMax = Math.max(1, Math.ceil(Math.max(...tp, ...eIdx.map(etp))));
     const pH = (plotB - plotT) * 0.36;
     const yp = (v) => plotB - (v / pMax) * pH;
-    const s = [];
+    const s = [], axL = [], axR = [];   // Achsenbeschriftung links/rechts in eigenen, fest stehenden Leisten (seit 1.11.2026, Wunsch von Andreas)
     s.push(`<svg width="${WW}" height="${H}" viewBox="0 0 ${WW} ${H}" role="img" aria-labelledby="chT chD"><title id="chT">Temperaturverlauf, Niederschlag und Sonnenschein</title><desc id="chD">${inca ? "Temperatur der letzten Stunden laut INCA-Analyse" : "Gemessene Temperatur der letzten Stunden"} und stündliche Prognose bis ${esc(dayInline(lp(t1)))} ${hm(t1)} Uhr${t2 > t1 ? `, danach längerfristige Prognose ECMWF bis ${esc(dayInline(lp(t2)))}` : ""}.</desc>`);
     // Nacht
     let nStart = null;
@@ -918,11 +922,11 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
     // Temperatur-Raster
     for (let v = lo; v <= hi; v += step) {
       s.push(`<line class="g" x1="${m.l}" x2="${(x(t2)).toFixed(1)}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/>`);
-      s.push(`<text class="ax" x="${m.l - 6}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${v}°</text>`);
+      axL.push(`<text class="ax" x="${m.l - 6}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${v}°</text>`);
     }
     // Niederschlags-Achse rechts
-    s.push(`<text class="ax" x="${(x(t2) + 6).toFixed(1)}" y="${(yp(pMax) + 4).toFixed(1)}">${pMax} mm</text>`);
-    s.push(`<text class="ax" x="${(x(t2) + 6).toFixed(1)}" y="${(plotB + 4).toFixed(1)}">0</text>`);
+    axR.push(`<text class="ax" x="6" y="${(yp(pMax) + 4).toFixed(1)}">${pMax} mm</text>`);
+    axR.push(`<text class="ax" x="6" y="${(plotB + 4).toFixed(1)}">0</text>`);
     // Zeitachse: Mitternacht und alle 6 Stunden
     for (let t = Math.ceil(t0 / 3600e3) * 3600e3; t <= t2; t += 3600e3) {
       const o = lp(t);
@@ -1007,7 +1011,11 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
       s.push(`<text class="nowt" x="${(x(now) + 4).toFixed(1)}" y="${plotT - 16}">jetzt</text>`);
     }
     s.push(`</svg>`);
-    box.innerHTML = s.join("");
+    const keep = box.querySelector(".cscroll")?.scrollLeft || 0;
+    box.innerHTML = `<div class="cscroll">${s.join("")}</div>`
+      + `<svg class="axbar axl" width="${m.l}" height="${H}" viewBox="0 0 ${m.l} ${H}" aria-hidden="true">${axL.join("")}</svg>`
+      + `<svg class="axbar axr" width="${m.r}" height="${H}" viewBox="0 0 ${m.r} ${H}" aria-hidden="true">${axR.join("")}</svg>`;
+    box.querySelector(".cscroll").scrollLeft = keep;
   }
 
   // ---------- Stunde für Stunde ----------
