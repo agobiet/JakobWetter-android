@@ -370,10 +370,7 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
     <div class="nowblocks" id="nowBlocks">
     <div class="tawes" id="tawesBox">
       <h3 id="tawesH" hidden>Station von GeoSphere Austria</h3>
-      <div>
-        <div class="big"><span class="v" id="nowTemp">–</span><span class="u">°C</span></div>
-        <p class="src" id="nowTempSrc"></p>
-      </div>
+      <p class="src" id="nowTempSrc"></p>
       <dl class="readouts" id="readouts"></dl>
     </div>
     <div class="lwd" id="lwdBox" hidden>
@@ -585,13 +582,12 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
     renderLwd(P);
     const G = P.now?.groups;
     orderNow(P);
-    if (!G) { $("#nowSec").hidden = !P.lwd; $("#nowTime").textContent = ""; $("#nowTemp").textContent = "–"; $("#nowTempSrc").textContent = "Keine Temperaturmessung verfügbar"; $("#readouts").innerHTML = ""; return; }
+    if (!G) { $("#nowSec").hidden = !P.lwd; $("#nowTime").textContent = ""; $("#nowTempSrc").textContent = "Keine Temperaturmessung verfügbar"; $("#readouts").innerHTML = ""; return; }
     $("#nowSec").hidden = false;
     const T = G.temp, times = Object.values(G).map((g) => Date.parse(g.time)).filter(isNum);
     const tMain = T ? Date.parse(T.time) : Math.max(...times);
     const old = (Date.now() - tMain) / 60000 > 60;
     $("#nowTime").textContent = isNum(tMain) ? `Messung ${hm(tMain)} Uhr${old ? " · " + ago(tMain) : ""}` : "";
-    $("#nowTemp").textContent = T ? f1(T.TL) : "–";
     $("#nowTempSrc").textContent = T ? srcTxt(T) : "Keine Temperaturmessung verfügbar";
     const ro = [];
     const item = (label, val, unit, det, g) => {
@@ -599,6 +595,8 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
       const lag = isNum(t) && isNum(tMain) && Math.abs(t - tMain) > 25 * 60000 ? ` · ${hm(t)} Uhr` : "";
       ro.push(`<div class="ro"><dt>${label}</dt><dd><span class="val">${val}<small>${unit}</small></span><span class="det">${det}</span><span class="src">${esc(srcTxt(g))}${lag}</span></dd></div>`);
     };
+    // Temperatur als normaler Messwert wie bei den LWD-Stationen (seit 1.11.2026, Wunsch von Andreas; vorher große Zahl)
+    if (T) item("Temperatur", f1(T.TL), "°C", "", T);
     if (T) item("Luftfeuchte", f0(T.RF), "%", `Taupunkt ${f1(T.TP)} °C`, T);
     const W = G.wind;
     if (W) {
