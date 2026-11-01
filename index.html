@@ -999,17 +999,21 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
     const F = P.forecast, S = P.snow, L = P.snowlimit, G = P.now?.groups?.snow;
     const rows = [];
     const now = Date.now(), today = lp(now).key, tomorrow = lp(now + 864e5).key;
-    // 1) Schneehöhe am Ort (Modell)
+    // 1) gemessen: nächste GeoSphere-Station mit Schneesensor und die LWD-Stationen (Feld lwd, lwdExtra), nächste zuerst
+    //    (Reihenfolge gemessen vor SNOWGRID und LWD-Stationen seit 1.11.2026, Wunsch von Andreas)
+    const NH0 = new Intl.NumberFormat("de-AT", { useGrouping: false });
+    const meas = [];
+    if (G && isNum(G.SCHNEE)) meas.push({ cm: G.SCHNEE, st: G.station, t: Date.parse(G.time) });
+    [P.lwd, ...(Array.isArray(P.lwdExtra) ? P.lwdExtra : [])].forEach((X) => { if (X && isNum(X.HS)) meas.push({ cm: X.HS, st: X.station || {}, t: Date.parse(X.time), lwd: true }); });
+    meas.sort((a, b) => (a.st.km ?? 99) - (b.st.km ?? 99));
+    if (meas.length) meas.forEach((m) => rows.push(["Gemessen", m.cm > 0 ? `${f0(m.cm)} cm` : "kein Schnee", m.cm > 0 ? "" : "none",
+      [m.st.name, isNum(m.st.km) ? N1.format(m.st.km) + " km" : "", isNum(m.st.alt) ? NH0.format(m.st.alt) + "\u00a0m" : "", m.lwd ? "LWD" : "", isNum(m.t) ? hm(m.t) + " Uhr" : ""].filter(Boolean).join(", ")]));
+    else rows.push(["Gemessen", "–", "none", "Keine Station in der Nähe meldet gerade eine Schneehöhe."]);
+    // 2) Schneehöhe am Ort (Modell)
     if (S && isNum(S.depth_cm)) {
       const d = lp(Date.parse(S.time));
       rows.push(["Schneehöhe am Ort", S.depth_cm > 0 ? `${f0(S.depth_cm)} cm` : "kein Schnee", S.depth_cm > 0 ? "" : "none",
         `Modell SNOWGRID${elevOf(P, "snowgrid") ? " (Gitterpunkt " + hM(elevOf(P, "snowgrid").point) + ")" : ""}, Stand ${dayInline(d) === "heute" || dayInline(d) === "morgen" ? dayInline(d) : d.day + "." + d.month + "."}`]);
-    }
-    // 2) gemessen (nächste Station mit Schneesensor)
-    if (G && isNum(G.SCHNEE)) {
-      rows.push(["Gemessen", `${f0(G.SCHNEE)} cm`, "", `${G.station.name}, ${N1.format(G.station.km)} km, ${hm(Date.parse(G.time))} Uhr`]);
-    } else {
-      rows.push(["Gemessen", "–", "none", "Keine Station in der Nähe meldet gerade eine Schneehöhe."]);
     }
     // 3) Neuschnee aus der Prognose (Wasserwert, 1 mm ≈ 1 cm)
     if (F?.sf && F.time) {
@@ -1036,7 +1040,7 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
     }
     $("#snowSec").hidden = !rows.length;
     $("#snowList").innerHTML = rows.map(([dt, dd, cls, sub]) => `<div><dt>${esc(dt)}</dt><dd class="${cls}">${esc(dd)}</dd>${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</div>`).join("");
-    $("#footSnow").innerHTML = rows.length ? "<strong>Schnee:</strong> Die Schneehöhe am Ort stammt aus dem Schneemodell SNOWGRID (1-km-Raster, ein Wert pro Tag, meist vom Vortag). „Gemessen“ zeigt die nächste Station mit Schneesensor bis 30 km Entfernung, sobald sie einen Wert meldet. Neuschnee ist der Schneefall der Prognose als Wasserwert; 1 mm entspricht grob 1 cm, je nach Schneedichte auch deutlich mehr. Die Schneefallgrenze kommt aus dem Modell C-LAEF; GeoSphere beschreibt sie als Höhe über Grund, die Werte passen aber eher zu Metern Seehöhe – sie ist daher nur als grober Anhaltspunkt gedacht." : "";
+    $("#footSnow").innerHTML = rows.length ? "<strong>Schnee:</strong> Die Schneehöhe am Ort stammt aus dem Schneemodell SNOWGRID (1-km-Raster, ein Wert pro Tag, meist vom Vortag). „Gemessen“ steht zuerst und zeigt die nächste GeoSphere-Station mit Schneesensor bis 30 km Entfernung, sobald sie einen Wert meldet, sowie die Stationen des Lawinenwarndienstes dieses Orts (Kennzeichen „LWD“, ungeprüfte Rohdaten), die nächste Station zuerst. Neuschnee ist der Schneefall der Prognose als Wasserwert; 1 mm entspricht grob 1 cm, je nach Schneedichte auch deutlich mehr. Die Schneefallgrenze kommt aus dem Modell C-LAEF; GeoSphere beschreibt sie als Höhe über Grund, die Werte passen aber eher zu Metern Seehöhe – sie ist daher nur als grober Anhaltspunkt gedacht." : "";
     if (P.forecast?.sf) $("#footSnow").innerHTML += " <strong>Powder-Alarm:</strong> Summe des prognostizierten Neuschnees der nächsten 3 Tage (72 Stunden) am Modell-Gitterpunkt: die erste Stunde aus dem Nowcast, dann C-LAEF bis zu dessen Ende (rund 2½ Tage), den Rest aus ECMWF (1 mm Wasserwert ≈ 1 cm). Fehlt ECMWF, zählt nur der Zeitraum bis zum Ende von C-LAEF – das „bis“ im Band zeigt, wie weit gerechnet ist. Stufe 1 (gelb) ab 10 cm, Stufe 2 (orange) ab 20 cm, Stufe 3 (rot) ab 40 cm. Der farbige Punkt in den Ortsknöpfen zeigt die Stufe für jeden Ort. Kein Hinweis auf Lawinengefahr – dafür den Lawinenlagebericht lesen.";
   }
 
