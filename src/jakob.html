@@ -125,6 +125,11 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
 .big .u { font-family: var(--f-display); font-size: 30px; font-weight: 500; color: var(--muted); margin-top: 4px; }
 .src { font-family: var(--f-data); font-size: 11px; color: var(--muted); }
 .lwd { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--rule); }
+.nowblocks { display: grid; gap: 16px; }
+.tawes { display: grid; gap: 10px; }
+.tawes.sep { padding-top: 14px; border-top: 1px solid var(--rule); }
+.tawes h3 { margin: 0; font-family: var(--f-data); font-size: 12px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.nowblocks > .lwd:first-child, .nowblocks > #lwdExtra:first-child > .lwd:first-child { padding-top: 0; border-top: 0; }
 .lwd h3 { margin: 0; font-family: var(--f-data); font-size: 12px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
 .lwd .src { margin: 0; }
 .readouts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px 20px; margin: 0; }
@@ -334,15 +339,20 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
       <h2 id="nowH">Jetzt gemessen</h2>
       <p class="src" id="nowTime"></p>
     </div>
-    <div>
-      <div class="big"><span class="v" id="nowTemp">–</span><span class="u">°C</span></div>
-      <p class="src" id="nowTempSrc"></p>
+    <div class="nowblocks" id="nowBlocks">
+    <div class="tawes" id="tawesBox">
+      <h3 id="tawesH" hidden>Station von GeoSphere Austria</h3>
+      <div>
+        <div class="big"><span class="v" id="nowTemp">–</span><span class="u">°C</span></div>
+        <p class="src" id="nowTempSrc"></p>
+      </div>
+      <dl class="readouts" id="readouts"></dl>
     </div>
-    <dl class="readouts" id="readouts"></dl>
     <div class="lwd" id="lwdBox" hidden>
-      <h3>Nächste Station des Lawinenwarndienstes</h3>
+      <h3>Station des Lawinenwarndienstes</h3>
       <p class="src" id="lwdSrc"></p>
       <dl class="readouts" id="lwdRo"></dl>
+    </div>
     </div>
   </section>
 
@@ -523,9 +533,28 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
     const s = g.station;
     return `${s.name} · ${isNum(s.km) ? N1.format(s.km) + " km" : ""}${isNum(s.alt) ? " · " + new Intl.NumberFormat("de-AT", { useGrouping: false }).format(s.alt) + "\u00a0m" : ""}`;
   }
+  // Reihenfolge der Stationen in „Jetzt gemessen“: die für den Ort repräsentativste zuerst, GeoSphere oder LWD
+  // (seit 1.11.2026, Wunsch von Andreas). Maß: Entfernung in km + Höhenunterschied zum Ort / 100 (100 m zählen wie 1 km).
+  function stScore(P, st) {
+    if (!st || !isNum(st.km)) return Infinity;
+    const site = isNum(P.elev?.site) ? P.elev.site : isNum(P.ecmwf?.elev) ? P.ecmwf.elev : null;
+    return st.km + (isNum(site) && isNum(st.alt) ? Math.abs(st.alt - site) / 100 : 0);
+  }
+  function orderNow(P) {
+    const box = $("#nowBlocks"), tb = $("#tawesBox");
+    const units = [[tb, P.now?.groups?.temp ? stScore(P, P.now.groups.temp.station) : Infinity], [$("#lwdBox"), P.lwd ? stScore(P, P.lwd.station) : Infinity]];
+    const ex = $("#lwdExtra");
+    if (ex) units.push([ex, Math.min(Infinity, ...(Array.isArray(P.lwdExtra) ? P.lwdExtra : []).map((X) => stScore(P, X.station)))]);
+    units.sort((a, b) => a[1] - b[1]).forEach(([el]) => box.appendChild(el));
+    const first = [...box.children].find((e) => !e.hidden && !(e.id === "lwdExtra" && !e.children.length));
+    const notFirst = first !== tb;
+    $("#tawesH").hidden = !notFirst;
+    tb.classList.toggle("sep", notFirst);
+  }
   function renderNow(P) {
     renderLwd(P);
     const G = P.now?.groups;
+    orderNow(P);
     if (!G) { $("#nowSec").hidden = !P.lwd; $("#nowTime").textContent = ""; $("#nowTemp").textContent = "–"; $("#nowTempSrc").textContent = "Keine Temperaturmessung verfügbar"; $("#readouts").innerHTML = ""; return; }
     $("#nowSec").hidden = false;
     const T = G.temp, times = Object.values(G).map((g) => Date.parse(g.time)).filter(isNum);
@@ -553,6 +582,9 @@ button:focus-visible, a:focus-visible, .hourstrip:focus-visible { outline: 2px s
     const Pp = G.pressure;
     if (Pp) item("Luftdruck", isNum(Pp.PRED) ? NP.format(Pp.PRED) : "–", "hPa", "auf Meereshöhe reduziert", Pp);
     $("#readouts").innerHTML = ro.join("");
+    // steht die GeoSphere-Station nicht zuerst, wandert ihre Messzeit von der Überschrift in ihren eigenen Block
+    $("#tawesH").textContent = "Station von GeoSphere Austria" + (!$("#tawesH").hidden && $("#nowTime").textContent ? " · " + $("#nowTime").textContent : "");
+    if (!$("#tawesH").hidden) $("#nowTime").textContent = "";
   }
 
   // Nächste Station des Lawinenwarndienstes (Feld lwd, Werte bereits in °C, cm, km/h)
