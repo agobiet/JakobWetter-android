@@ -19,6 +19,8 @@
   // Flachlandorte ohne LWD-Station (Wunsch von Andreas, 15.10.2026)
   const NO_LWD = new Set(["st-peter", "griesplatz"]);
   const LWD_EXTRA = { tauplitzalm: [{ label: "Großsee", re: /gro(ß|ss|s)\s*see/i }] };
+  // fest gewählte LWD-Station statt der nächsten (Wunsch von Andreas, 1.11.2026); meldet sie nichts, gilt wieder die nächste
+  const LWD_FIX = { schladming: /galsterberg/i };
   const STORE = "jakob.live.v1", STORE_LWD = "jakob.live.lwd.v1", STORE_LOC = "jakob.live.standort";
   const REFRESH_MIN = 10;
 
@@ -305,7 +307,7 @@
     put("ecmwf", ec, false);
     if (NO_LWD.has(p.id)) { delete doc.lwd; delete doc.lwdExtra; }
     else if (lwd) {
-      const l = lwdNearest(p, lwd);
+      const l = (LWD_FIX[p.id] && lwdNearest(p, lwd, (s) => LWD_FIX[p.id].test(s[1]))) || lwdNearest(p, lwd);
       if (l) doc.lwd = l; else delete doc.lwd;
       const ex = (LWD_EXTRA[p.id] || []).map((e) => {
         const d = lwdNearest(p, lwd, (s) => e.re.test(s[1]));
